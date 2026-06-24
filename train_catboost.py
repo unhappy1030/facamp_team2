@@ -579,6 +579,7 @@ def main():
     
     capital_dists = load_capital_distances(dist_csv) if dist_csv.exists() else {}
     market_odds = load_market_odds(odds_parquet) if odds_parquet.exists() else None
+    snap = build_snapshots(df_predict)
 
     # 외부 검증 데이터셋 로드
     X_ext, y_ext, df_ext_matched = None, None, None
@@ -669,8 +670,6 @@ def main():
         blend_weights = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
         leaderboard = []
 
-        snap = build_snapshots(df_predict)
-
         # 토너먼트 시뮬레이션용 데이터 파일 검증
         teams_csv = Path("/home/unhappy1030/repo/facamp/final/dataset_scripts_out/wc_2026_teams.csv")
         fixtures_csv = Path("/home/unhappy1030/repo/facamp/final/dataset_scripts_out/wc_2026_fixtures.csv")
@@ -758,6 +757,22 @@ def main():
             df_params = pd.DataFrame(best_params_records)
             df_params.to_csv(params_csv, index=False)
             print(f"\n[Info] CatBoost Fold별 최적 하이퍼파라미터가 '{params_csv}'에 저장되었습니다.")
+
+        # Predictor와 모델을 재사용할 수 있도록 pickle 파일로 저장
+        import pickle
+        assets = {
+            "trained_models": trained_models,
+            "trained_regressors_home": trained_regressors_home,
+            "trained_regressors_away": trained_regressors_away,
+            "feature_cols": feature_cols,
+            "snap": snap,
+            "capital_dists": capital_dists,
+            "market_odds": market_odds
+        }
+        pickle_path = out_dir / "predictor_assets.pkl"
+        with open(pickle_path, "wb") as f:
+            pickle.dump(assets, f)
+        print(f"[Info] 추론을 위한 Predictor 에셋이 '{pickle_path}'에 저장되었습니다.")
 
         print("\n" + "="*20 + " 🏆 CatBoost Blending Weight (w) 리더보드 " + "="*20)
         print(df_leaderboard.to_string(index=False))

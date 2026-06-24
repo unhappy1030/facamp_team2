@@ -1,0 +1,6 @@
+Model,Fold,Best_Parameters
+CatBoost,1,"{'depth': 4, 'learning_rate': 0.014894958533878847, 'iterations': 50}"
+CatBoost,2,"{'depth': 7, 'learning_rate': 0.2970028538922354, 'iterations': 250}"
+CatBoost,3,"{'depth': 8, 'learning_rate': 0.017625672902566804, 'iterations': 250}"
+CatBoost,4,"{'depth': 6, 'learning_rate': 0.015127939661581056, 'iterations': 250}"
+CatBoost,5,"{'depth': 4, 'learning_rate': 0.00602515972088599, 'iterations': 250}"
