@@ -328,21 +328,21 @@ def simulate(predictor, fixtures, standings, thirds, qualified_groups, rules):
     if assignment is None:
         raise ValueError(f"해당 조합을 규정표에서 찾지 못했습니다: {qualified_groups}")
 
-    wildcard_2nd_teams = {
-        "Best 3rd #1": standings["B"][1],
-        "Best 3rd #2": standings["A"][1],
-        "Best 3rd #3": standings["C"][1],
-        "Best 3rd #4": standings["H"][1],
-        "Best 3rd #5": standings["F"][1],
-        "Best 3rd #6": standings["J"][1],
-        "Best 3rd #7": standings["L"][1],
-        "Best 3rd #8": standings["K"][1],
+    wildcard_1st_teams = {
+        "Best 3rd #1": standings["B"][0],
+        "Best 3rd #2": standings["A"][0],
+        "Best 3rd #3": standings["D"][0],
+        "Best 3rd #4": standings["E"][0],
+        "Best 3rd #5": standings["G"][0],
+        "Best 3rd #6": standings["I"][0],
+        "Best 3rd #7": standings["L"][0],
+        "Best 3rd #8": standings["K"][0],
     }
 
     def slot(token, ctx):
         token = str(token)
-        if token in wildcard_2nd_teams:
-            return wildcard_2nd_teams[token]
+        if token in wildcard_1st_teams:
+            return wildcard_1st_teams[token]
             
         m = re.fullmatch(r"([12])([A-L])", token)
         if m:
