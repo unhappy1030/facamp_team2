@@ -329,14 +329,14 @@ def simulate(predictor, fixtures, standings, thirds, qualified_groups, rules):
         raise ValueError(f"해당 조합을 규정표에서 찾지 못했습니다: {qualified_groups}")
 
     wildcard_1st_teams = {
-        "Best 3rd #1": standings["B"][0],
-        "Best 3rd #2": standings["A"][0],
-        "Best 3rd #3": standings["D"][0],
-        "Best 3rd #4": standings["E"][0],
-        "Best 3rd #5": standings["G"][0],
-        "Best 3rd #6": standings["I"][0],
-        "Best 3rd #7": standings["L"][0],
-        "Best 3rd #8": standings["K"][0],
+        "Best 3rd #1": thirds[0],
+        "Best 3rd #2": thirds[1],
+        "Best 3rd #3": thirds[2],
+        "Best 3rd #4": thirds[3],
+        "Best 3rd #5": thirds[4],
+        "Best 3rd #6": thirds[5],
+        "Best 3rd #7": thirds[6],
+        "Best 3rd #8": thirds[7],
     }
 
     def slot(token, ctx):
