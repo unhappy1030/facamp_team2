@@ -328,32 +328,32 @@ def simulate(predictor, fixtures, standings, thirds, qualified_groups, rules):
     if assignment is None:
         raise ValueError(f"해당 조합을 규정표에서 찾지 못했습니다: {qualified_groups}")
 
-    wildcard_1st_teams = {
-        "Best 3rd #1": thirds[0],
-        "Best 3rd #2": thirds[1],
-        "Best 3rd #3": thirds[2],
-        "Best 3rd #4": thirds[3],
-        "Best 3rd #5": thirds[4],
-        "Best 3rd #6": thirds[5],
-        "Best 3rd #7": thirds[6],
-        "Best 3rd #8": thirds[7],
-    }
+    # 진출 3위팀 lookup: "3X" → 팀명
+    third_lookup = {f"3{g}": standings[g][2] for g in qualified_groups}
+
+    # FIFA Annexe C 공식 32강 대진 (barcket.py round32_matches와 동일 구조)
+    # fixtures CSV의 "1X"/"Best 3rd #N" 토큰 대신 직접 팀을 배치한다.
+    r32_pairs = [
+        (standings["A"][1], standings["B"][1]),
+        (standings["E"][0], third_lookup[assignment["1E"]]),
+        (standings["F"][0], standings["C"][1]),
+        (standings["C"][0], standings["F"][1]),
+        (standings["I"][0], third_lookup[assignment["1I"]]),
+        (standings["E"][1], standings["I"][1]),
+        (standings["A"][0], third_lookup[assignment["1A"]]),
+        (standings["L"][0], third_lookup[assignment["1L"]]),
+        (standings["D"][0], third_lookup[assignment["1D"]]),
+        (standings["G"][0], third_lookup[assignment["1G"]]),
+        (standings["K"][1], standings["L"][1]),
+        (standings["H"][0], standings["J"][1]),
+        (standings["B"][0], third_lookup[assignment["1B"]]),
+        (standings["J"][0], standings["H"][1]),
+        (standings["K"][0], third_lookup[assignment["1K"]]),
+        (standings["D"][1], standings["G"][1]),
+    ]
 
     def slot(token, ctx):
         token = str(token)
-        if token in wildcard_1st_teams:
-            return wildcard_1st_teams[token]
-            
-        m = re.fullmatch(r"([12])([A-L])", token)
-        if m:
-            slot_num = int(m.group(1))
-            group_name = m.group(2)
-            if slot_num == 1 and token in assignment:
-                target_3rd_group = assignment[token][1:]
-                return standings[target_3rd_group][2]
-            else:
-                return standings[group_name][slot_num - 1]
-                
         for pat, lst in [(r"R32 W(\d+)", "r32"), (r"QF(\d+)", "r16"),
                          (r"SF(\d+)", "qf"), (r"Finalist (\d+)", "sf_w")]:
             m = re.fullmatch(pat, token)
@@ -365,7 +365,17 @@ def simulate(predictor, fixtures, standings, thirds, qualified_groups, rules):
 
     ctx = {"r32": [], "r16": [], "qf": [], "sf_w": [], "sf_l": []}
     out_rows = []
+
+    # 32강: 공식 대진표로 직접 시뮬레이션
+    for t1, t2 in r32_pairs:
+        m = predictor.play(t1, t2, knockout=True)
+        out_rows.append({**m, "type": "Round of 32"})
+        ctx["r32"].append(m["winner"])
+
+    # 16강 이후: fixture CSV의 R32 W(N) 토큰으로 순차 진행
     for stage, label in TYPE_MAP.items():
+        if stage == "Round of 32":
+            continue
         winners = []
         for _, r in fixtures[fixtures["stage"] == stage].iterrows():
             t1, t2 = slot(r["team1"], ctx), slot(r["team2"], ctx)
@@ -374,10 +384,10 @@ def simulate(predictor, fixtures, standings, thirds, qualified_groups, rules):
             winners.append(m["winner"])
             if stage == "Semi-final":
                 ctx["sf_l"].append(t2 if m["winner"] == t1 else t1)
-        key = {"Round of 32": "r32", "Round of 16": "r16",
-               "Quarter-final": "qf", "Semi-final": "sf_w"}.get(stage)
+        key = {"Round of 16": "r16", "Quarter-final": "qf", "Semi-final": "sf_w"}.get(stage)
         if key:
             ctx[key] = winners
+
     return out_rows
 
 def tune_model_optuna(model_name, X_tr, y_tr, n_trials=15):
