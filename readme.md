@@ -51,16 +51,17 @@
 final/
 ├── train_catboost.py              # 메인 학습·시뮬레이션 스크립트
 ├── preprocess_base.py             # 전처리 파이프라인 (out/ 생성)
+├── theodds_fetch.py               # the-odds-api 배당률 수집 스크립트
 ├── REPORT.md                      # 이 보고서
 ├── PRESENTATION_SCRIPT.md         # 발표 대본
 │
 ├── dataset/                       # 원천 데이터
-│   ├── results.csv                # 국제 A매치 경기 결과 (전체)
-│   ├── fifa_ranking-2026-04-01.csv
-│   ├── elo_ratings_wc2026.csv     # ELO 레이팅 + 본선 48개국 목록
-│   ├── main_dataset.csv           # 고급 전력 지표 (ELO·WCI·PI·WhoScored)
-│   ├── wc_2026_capital_distance.csv
-│   └── odds_avg.parquet           # 시장 평균 배당률 (28경기)
+│   ├── results.csv                # 국제 A매치 경기 결과 (전체) [Kaggle]
+│   ├── fifa_ranking-2026-04-01.csv  # 공식 FIFA 랭킹 [Kaggle]
+│   ├── elo_ratings_wc2026.csv     # ELO 레이팅 + 본선 48개국 목록 [Kaggle]
+│   ├── main_dataset.csv           # 고급 전력 지표 [WhoScored 크롤링]
+│   ├── wc_2026_capital_distance.csv  # 수도→북미 개최지 거리 [직접 작성]
+│   └── odds_avg.parquet           # 시장 평균 배당률 (28경기) [the-odds-api]
 │
 ├── out/                           # 전처리 산출물
 │   ├── train_base.parquet         # 학습셋 (896경기, 88컬럼)
@@ -123,16 +124,49 @@ final/
 
 ## 4. 데이터 파이프라인
 
-### 4-1. 원천 데이터
+### 4-1. 원천 데이터 및 출처
 
-| 파일 | 내용 |
-|------|------|
-| `results.csv` | 국제 A매치 경기 결과 전체 |
-| `fifa_ranking-2026-04-01.csv` | 2026-04-01 기준 공식 FIFA 랭킹 |
-| `elo_ratings_wc2026.csv` | ELO 레이팅 + WC 48개국 명단 |
-| `main_dataset.csv` | ELO·PI·WCI·WhoScored 통합 전력 지표 |
-| `wc_2026_capital_distance.csv` | 수도 → 북미 개최지 거리(km) |
-| `odds_avg.parquet` | 시장 평균 배당률 28경기 (implied probability) |
+| 파일 | 내용 | 출처 | 수집 방법 |
+|------|------|------|---------|
+| `results.csv` | 국제 A매치 경기 결과 전체 | Kaggle — `kulkarniparth09/fifa-world-cup-complete-dataset-19302026` | `kagglehub` 자동 다운로드 |
+| `fifa_ranking-2026-04-01.csv` | 2026-04-01 기준 공식 FIFA 랭킹 | Kaggle — `kulkarniparth09/fifa-world-cup-complete-dataset-19302026` | `kagglehub` 자동 다운로드 |
+| `elo_ratings_wc2026.csv` | ELO 레이팅 + WC 48개국 명단 | Kaggle — `afonsofernandescruz/2026-fifa-world-cup-historical-elo-ratings` | `kagglehub` 자동 다운로드 |
+| `main_dataset.csv` | ELO·PI·WCI·WhoScored 통합 전력 지표 | [WhoScored](https://whoscored.com) | 직접 크롤링 (슈팅·점유율·패스·xG 등) |
+| `wc_2026_capital_distance.csv` | 수도 → 북미 개최지 거리(km) | 직접 계산 | 위경도 기반 haversine 계산 |
+| `odds_avg.parquet` | 시장 평균 배당률 28경기 (implied prob.) | [the-odds-api.com](https://the-odds-api.com) | `theodds_fetch.py` (uk·eu 북메이커 평균, vig 제거) |
+
+#### Kaggle 데이터셋 재수집 방법
+
+```bash
+# results.csv / fifa_ranking-*.csv
+python dataset_scripts/download_wc_dataset.py
+
+# elo_ratings_wc2026.csv
+python dataset_scripts/download_elo_ratings.py
+```
+
+#### 배당률 재수집 방법
+
+```bash
+export ODDS_API_KEY="발급키"   # https://the-odds-api.com/#get-access (무료 플랜)
+/home/unhappy1030/miniconda3/envs/fac/bin/python \
+    /home/unhappy1030/repo/facamp/final/theodds_fetch.py
+# → dataset/odds_avg.parquet 갱신
+```
+
+#### WhoScored 크롤링 (`main_dataset.csv`)
+
+[WhoScored](https://whoscored.com) 국가대표 통계 페이지에서 수집한 경기별 고급 지표입니다.
+
+| 컬럼 그룹 | 내용 |
+|-----------|------|
+| `ws_shots_*` | 슈팅 수 / 유효슈팅 수 |
+| `ws_possession_*` | 볼 점유율(%) |
+| `ws_pass_acc_*` | 패스 성공률(%) |
+| `ws_xg_*` | 기대 득점(xG) |
+| `pi_score_*` | Performance Index (WhoScored 종합 점수) |
+| `wci_*` | World Cup Index (리더십·경험·스쿼드 심도) |
+| `squad_value_*` | Transfermarkt 연동 스쿼드 시장가치 |
 
 ### 4-2. 전처리 7단계 파이프라인
 
@@ -387,12 +421,23 @@ p̃ = exp(log_p̃) / Σexp(log_p̃)        ← softmax 정규화
 ### 데이터 흐름
 
 ```
+[데이터 수집]
+theodds_fetch.py ──────────────────────────────► dataset/odds_avg.parquet
+  (the-odds-api.com, ODDS_API_KEY 필요)
+dataset_scripts/download_wc_dataset.py ────────► dataset/results.csv
+  (Kaggle kagglehub)                             dataset/fifa_ranking-*.csv
+dataset_scripts/download_elo_ratings.py ───────► dataset/elo_ratings_wc2026.csv
+  (Kaggle kagglehub)
+WhoScored 크롤링 (수동) ────────────────────────► dataset/main_dataset.csv
+
+[전처리]
 dataset/results.csv
 dataset/fifa_ranking-2026-04-01.csv  ┐
 dataset/elo_ratings_wc2026.csv       ├─ preprocess_base.py ─► out/train_base.parquet
 dataset/main_dataset.csv             ┘                      ► out/predict_base.parquet
                                                             ► out/final_base.parquet
 
+[학습 + 시뮬레이션]
 out/*.parquet                         ┐
 dataset/odds_avg.parquet              │
 dataset_scripts_out/wc_2026_*.csv     ├─ train_catboost.py ─► pred_cat/submission_reproduced.csv
